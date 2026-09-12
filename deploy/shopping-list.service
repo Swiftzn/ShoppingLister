@@ -1,0 +1,22 @@
+[Unit]
+Description=Household grocery list
+After=network.target
+
+[Service]
+Type=simple
+User=shopping
+Group=shopping
+WorkingDirectory=/opt/shopping-list
+ExecStart=/usr/bin/python3 /opt/shopping-list/server.py
+Environment=HOST=0.0.0.0
+Environment=PORT=8080
+Environment=DATA_DIR=/var/lib/shopping-list
+StateDirectory=shopping-list
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
