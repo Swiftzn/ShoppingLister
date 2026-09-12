@@ -35,7 +35,7 @@ function render() {
     name.onclick = () => { editing = item.id; $('edit-name').value = item.name; $('edit-quantity').value = item.quantity; $('edit-dialog').showModal(); };
     const qty = document.createElement('span'); qty.className = 'quantity'; qty.textContent = item.quantity;
     const remove = document.createElement('button'); remove.className = 'remove'; remove.textContent = '×'; remove.setAttribute('aria-label', `Delete ${item.name}`); remove.onclick = () => change(() => api('/' + item.id, 'DELETE', {}));
-    row.append(check, name, qty, remove); $(item.checked ? 'done' : 'pending').append(row);
+    row.append(check, qty, name, remove); $(item.checked ? 'done' : 'pending').append(row);
   }
 }
 $('add-form').onsubmit = event => { event.preventDefault(); const name = $('name').value.trim(); if (!name) return; change(async () => { await api('', 'POST', {name, quantity: $('quantity').value.trim()}); $('add-form').reset(); $('name').focus(); }); };
