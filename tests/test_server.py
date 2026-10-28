@@ -52,6 +52,24 @@ class GroceryTests(unittest.TestCase):
         self.assertEqual(self.request('DELETE', path, {})[0], 200)
         self.assertEqual(self.request()[1], [])
 
+    def test_meal_plan(self):
+        self.request('POST', body={'name': 'Milk'})
+        meals = self.request(path='/api/meals')[1]
+        self.assertEqual([m['day'] for m in meals], list(server.DAYS))
+        self.assertTrue(all(m['meal'] == '' for m in meals))
+        self.assertEqual(self.request('PATCH', '/api/meals/monday', {'meal': ' Spagbol '})[0], 200)
+        self.request('PATCH', '/api/meals/tuesday', {'meal': 'Curry'})
+        server.initialize()
+        self.assertEqual(self.request(path='/api/meals')[1][0]['meal'], 'Spagbol')
+        self.assertEqual(self.request(path='/api/meals')[1][1]['meal'], 'Curry')
+        self.assertEqual(self.request()[1][0]['name'], 'Milk')
+        self.assertEqual(self.request('PATCH', '/api/meals/monday', {'meal': ''})[0], 200)
+        self.assertEqual(self.request(path='/api/meals')[1][0]['meal'], '')
+        for value in [None, 42, 'a' * 201]:
+            self.assertEqual(self.request('PATCH', '/api/meals/monday', {'meal': value})[0], 400)
+        self.assertEqual(self.request('PATCH', '/api/meals/funday', {'meal': 'Soup'})[0], 404)
+        self.assertEqual(self.request('PATCH', '/api/meals/monday', {'meal': 'Soup'}, origin='https://elsewhere.example')[0], 403)
+
     def test_validation_and_origin(self):
         for body in ({'name': ' '}, {'name': 42}, {'name': 'a' * 121}, []):
             self.assertEqual(self.request('POST', body=body)[0], 400)

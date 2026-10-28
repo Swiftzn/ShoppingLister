@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#285747">
-  <title>Grocery list</title>
+  <title>Pantry</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
@@ -12,6 +12,11 @@
 <body>
   <main>
     <header><a class="brand" href="/" aria-label="Grocery list home"><span class="brand-icon">▥</span> pantry<span class="brand-dot">.</span></a><span class="home-label">THE HOME LIST</span></header>
+    <div class="tabs" role="tablist" aria-label="Pantry">
+      <button id="grocery-tab" role="tab" aria-selected="true" aria-controls="grocery-panel">Grocery list</button>
+      <button id="meals-tab" role="tab" aria-selected="false" aria-controls="meals-panel" tabindex="-1">Meal Planner</button>
+    </div>
+    <section id="grocery-panel" role="tabpanel" aria-labelledby="grocery-tab">
     <section class="heading"><div><p class="eyebrow">A LITTLE LESS TO REMEMBER</p><h1>Grocery list<span>.</span></h1></div><span id="count" class="count">Loading…</span></section>
     <form id="add-form" class="add-form">
       <div class="name-field"><label for="name">What do we need?</label><input id="name" name="name" placeholder="Milk, apples, something nice…" maxlength="120" required autocomplete="off"></div>
@@ -24,6 +29,13 @@
     <div id="empty" class="empty" hidden><span class="empty-icon">✓</span><h3>A fresh start.</h3><p>Add the first thing you need above.</p></div>
     <ul id="pending" aria-label="Items to pick up"></ul>
     <section id="done-section" hidden><div class="list-heading done-heading"><h2>In the basket <span id="done-count"></span></h2></div><ul id="done" aria-label="Items in the basket"></ul></section>
+    </section>
+    <section id="meals-panel" role="tabpanel" aria-labelledby="meals-tab" hidden>
+      <section class="heading"><div><p class="eyebrow">MONDAY TO SUNDAY</p><h1>Meal planner<span>.</span></h1></div></section>
+      <p class="meal-help">One week, one meal a day. Add whatever sounds good.</p>
+      <p id="meal-error" role="alert" hidden></p>
+      <div id="meal-days"></div>
+    </section>
     <footer><span>A place for the everyday essentials.</span><span id="status" role="status">Connecting…</span></footer>
   </main>
   <dialog id="edit-dialog"><form id="edit-form"><h2>Edit item</h2><label for="edit-name">Item</label><input id="edit-name" maxlength="120" required><label for="edit-quantity">Quantity</label><input id="edit-quantity" maxlength="40"><div class="dialog-actions"><button type="button" id="cancel-edit">Cancel</button><button class="primary" type="submit">Save changes</button></div></form></dialog>

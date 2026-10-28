@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent
+DAYS = ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')
 DB = Path(os.environ.get('DATA_DIR', ROOT / 'data')) / 'shopping.db'
 
 
@@ -27,6 +28,9 @@ def initialize():
     with connect() as db:
         db.execute('CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, quantity TEXT NOT NULL, checked INTEGER NOT NULL DEFAULT 0)')
 
+        db.execute('CREATE TABLE IF NOT EXISTS meals (day TEXT PRIMARY KEY, meal TEXT NOT NULL)')
+        db.executemany('INSERT OR IGNORE INTO meals(day, meal) VALUES (?, ?)', [(day, '') for day in DAYS])
+
 
 class Handler(BaseHTTPRequestHandler):
     def send(self, status, body, content_type='application/json'):
@@ -42,6 +46,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/meals':
+            try:
+                with connect() as db:
+                    meals = dict(db.execute('SELECT day, meal FROM meals').fetchall())
+                self.send(200, [{'day': day, 'meal': meals[day]} for day in DAYS])
+            except sqlite3.Error:
+                self.send(500, {'error': 'Could not load the meal plan.'})
+            return
         if path == '/api/items':
             try:
                 with connect() as db:
@@ -73,7 +85,16 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Expected an object.')
             path = urlsplit(self.path).path
             with connect() as db:
-                if self.command == 'POST' and path == '/api/items':
+                if self.command == 'PATCH' and path.startswith('/api/meals/'):
+                    day = path.removeprefix('/api/meals/')
+                    meal = body.get('meal')
+                    if day not in DAYS:
+                        self.send(404, {'error': 'Unknown day.'})
+                        return
+                    if not isinstance(meal, str) or len(meal) > 200:
+                        raise ValueError('Enter a meal up to 200 characters.')
+                    db.execute('UPDATE meals SET meal = ? WHERE day = ?', (meal.strip(), day))
+                elif self.command == 'POST' and path == '/api/items':
                     name, quantity = self.fields(body)
                     db.execute('INSERT INTO items(name, quantity) VALUES (?, ?)', (name, quantity))
                 elif path.startswith('/api/items/') and path.removeprefix('/api/items/').isdigit():

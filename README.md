@@ -82,3 +82,7 @@ python3 -m unittest discover -s tests -v
 ```
 
 Tesco basket integration is deliberately left for a future version. The `/api/items` JSON endpoint provides the list for future integrations.
+
+## Meal planner
+
+The Meal Planner tab holds one shared Monday-to-Sunday plan. Enter any meal name and use Save beside that day. Save an empty field to clear it. The plan persists until edited; it does not reset each week. Open planners refresh every 15 seconds without replacing unsaved edits. Meals live in the same SQLite database as groceries, so existing backup instructions cover both. Updating automatically adds meal storage and preserves existing groceries.

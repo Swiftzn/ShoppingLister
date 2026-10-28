@@ -14,9 +14,9 @@ async function refresh() {
 async function change(action) {
   if (busy) return;
   busy = true;
-  document.querySelectorAll('button').forEach(b => b.disabled = true);
+  document.querySelectorAll('#grocery-panel button, #edit-dialog button').forEach(b => b.disabled = true);
   try { await action(); await refresh(); } catch (error) { showError(error); }
-  finally { busy = false; document.querySelectorAll('button').forEach(b => b.disabled = false); }
+  finally { busy = false; document.querySelectorAll('#grocery-panel button, #edit-dialog button').forEach(b => b.disabled = false); }
 }
 function render() {
   $('pending').replaceChildren(); $('done').replaceChildren();
@@ -44,3 +44,68 @@ $('cancel-edit').onclick = () => $('edit-dialog').close();
 $('refresh').onclick = () => change(async () => {});
 refresh().catch(error => { $('loading').textContent = 'Your list could not be loaded. Try Refresh list.'; showError(error); });
 setInterval(() => { if (!busy && !document.hidden && !$('edit-dialog').open) change(async () => {}); }, 15000);
+
+// Each day saves separately; refreshing never overwrites an unsaved draft.
+const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const mealRows = new Map();
+async function mealApi(day, meal) {
+  const response = await fetch('/api/meals' + (day ? '/' + day : ''), day ? {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({meal})
+  } : {});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Could not save the meal plan.');
+  return data;
+}
+for (const label of days) {
+  const day = label.toLowerCase();
+  const form = document.createElement('form'); form.className = 'meal-row';
+  const title = document.createElement('label'); title.htmlFor = 'meal-' + day; title.textContent = label;
+  const input = document.createElement('input'); input.id = title.htmlFor; input.maxLength = 200;
+  input.placeholder = label === 'Monday' ? 'e.g. Spagbol' : 'What’s for dinner?'; input.disabled = true;
+  const save = document.createElement('button'); save.className = 'primary'; save.type = 'submit'; save.textContent = 'Save'; save.disabled = true;
+  const status = document.createElement('span'); status.className = 'meal-status'; status.setAttribute('role', 'status');
+  const row = {input, save, status, dirty: false, saving: false}; mealRows.set(day, row);
+  input.oninput = () => { row.dirty = true; save.disabled = false; status.textContent = 'Unsaved'; };
+  form.onsubmit = async event => {
+    event.preventDefault(); if (row.saving) return;
+    row.saving = true; input.disabled = true; save.disabled = true; status.textContent = 'Saving…';
+    try {
+      await mealApi(day, input.value); input.value = input.value.trim(); row.dirty = false;
+      status.textContent = 'Saved'; $('meal-error').hidden = true;
+    } catch (error) { status.textContent = 'Not saved — try again'; $('meal-error').textContent = error.message; $('meal-error').hidden = false; }
+    finally { row.saving = false; input.disabled = false; save.disabled = !row.dirty; }
+  };
+  form.append(title, input, save, status); $('meal-days').append(form);
+}
+async function refreshMeals() {
+  try {
+    const meals = await mealApi();
+    for (const {day, meal} of meals) {
+      const row = mealRows.get(day);
+      if (row && !row.dirty && !row.saving && document.activeElement !== row.input) {
+        row.input.value = meal; row.input.disabled = false;
+      }
+    }
+    $('meal-error').hidden = false;
+    $('meal-error').textContent = [...mealRows.values()].some(row => row.dirty) ? 'You have unsaved changes. Use Save beside each day.' : '';
+    $('meal-error').hidden = !$('meal-error').textContent;
+  } catch (error) { $('meal-error').textContent = 'Could not load the meal plan. Retrying shortly.'; $('meal-error').hidden = false; }
+}
+const tabs = [$('grocery-tab'), $('meals-tab')];
+function selectTab(tab) {
+  for (const item of tabs) {
+    const active = item === tab; item.setAttribute('aria-selected', String(active)); item.tabIndex = active ? 0 : -1;
+    $(item.getAttribute('aria-controls')).hidden = !active;
+  }
+  if (tab === $('meals-tab')) refreshMeals();
+}
+for (const tab of tabs) {
+  tab.onclick = () => selectTab(tab);
+  tab.onkeydown = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[1] : tabs[1 - tabs.indexOf(tab)];
+    next.focus(); selectTab(next);
+  };
+}
+setInterval(() => { if (!document.hidden && !$('meals-panel').hidden) refreshMeals(); }, 15000);
