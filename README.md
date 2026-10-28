@@ -85,4 +85,4 @@ Tesco basket integration is deliberately left for a future version. The `/api/it
 
 ## Meal planner
 
-The Meal Planner tab holds one shared Monday-to-Sunday plan. Enter any meal name and use Save beside that day. Save an empty field to clear it. The plan persists until edited; it does not reset each week. Open planners refresh every 15 seconds without replacing unsaved edits. Meals live in the same SQLite database as groceries, so existing backup instructions cover both. Updating automatically adds meal storage and preserves existing groceries.
+The Meal Planner tab holds one shared Monday-to-Sunday plan. Each day displays its meal on a card. Choose Edit (or Add meal), enter a meal name, and save. Cancel leaves the saved meal unchanged. Save an empty field to clear it. The plan persists until edited; it does not reset each week. Open planners refresh every 15 seconds without replacing unsaved edits. Meals live in the same SQLite database as groceries, so existing backup instructions cover both. Updating automatically adds meal storage and preserves existing groceries.

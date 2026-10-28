@@ -31,11 +31,13 @@ function render() {
     const row = document.createElement('li'); row.className = item.checked ? 'item checked' : 'item';
     const check = document.createElement('button'); check.className = 'check'; check.textContent = item.checked ? '✓' : ''; check.setAttribute('aria-label', `${item.checked ? 'Uncheck' : 'Check off'} ${item.name}`); check.setAttribute('aria-pressed', String(Boolean(item.checked)));
     check.onclick = () => change(() => api('/' + item.id, 'PATCH', {checked: !item.checked}));
-    const name = document.createElement('button'); name.className = 'item-name'; name.textContent = item.name; name.setAttribute('aria-label', `Edit ${item.name}`);
+    const name = document.createElement('button'); name.className = 'item-name'; name.textContent = ''; name.setAttribute('aria-label', `Edit ${item.name}`);
     name.onclick = () => { editing = item.id; $('edit-name').value = item.name; $('edit-quantity').value = item.quantity; $('edit-dialog').showModal(); };
-    const qty = document.createElement('span'); qty.className = 'quantity'; qty.textContent = item.quantity;
+    const qty = document.createElement('span'); qty.className = 'quantity'; qty.textContent = item.quantity ? item.quantity + (/^[0-9]+([.,][0-9]+)?$/.test(item.quantity.trim()) ? ' ×' : '') : '';
     const remove = document.createElement('button'); remove.className = 'remove'; remove.textContent = '×'; remove.setAttribute('aria-label', `Delete ${item.name}`); remove.onclick = () => change(() => api('/' + item.id, 'DELETE', {}));
-    row.append(check, qty, name, remove); $(item.checked ? 'done' : 'pending').append(row);
+    const itemLabel = document.createElement('span'); itemLabel.className = 'item-label'; itemLabel.textContent = item.name;
+    name.append(qty, itemLabel);
+    row.append(check, name, remove); $(item.checked ? 'done' : 'pending').append(row);
   }
 }
 $('add-form').onsubmit = event => { event.preventDefault(); const name = $('name').value.trim(); if (!name) return; change(async () => { await api('', 'POST', {name, quantity: $('quantity').value.trim()}); $('add-form').reset(); $('name').focus(); }); };
@@ -58,37 +60,46 @@ async function mealApi(day, meal) {
 }
 for (const label of days) {
   const day = label.toLowerCase();
-  const form = document.createElement('form'); form.className = 'meal-row';
-  const title = document.createElement('label'); title.htmlFor = 'meal-' + day; title.textContent = label;
-  const input = document.createElement('input'); input.id = title.htmlFor; input.maxLength = 200;
-  input.placeholder = label === 'Monday' ? 'e.g. Spagbol' : 'What’s for dinner?'; input.disabled = true;
-  const save = document.createElement('button'); save.className = 'primary'; save.type = 'submit'; save.textContent = 'Save'; save.disabled = true;
+  const card = document.createElement('article'); card.className = 'meal-card';
+  const heading = document.createElement('div'); heading.className = 'meal-card-heading';
+  const title = document.createElement('h2'); title.textContent = label;
+  const edit = document.createElement('button'); edit.className = 'meal-edit'; edit.textContent = 'Edit'; edit.disabled = true; edit.setAttribute('aria-label', 'Edit ' + label + ' meal');
+  const display = document.createElement('p'); display.className = 'meal-display'; display.textContent = 'Loading…';
+  const form = document.createElement('form'); form.className = 'meal-editor'; form.hidden = true;
+  const inputLabel = document.createElement('label'); inputLabel.htmlFor = 'meal-' + day; inputLabel.textContent = 'Meal for ' + label;
+  const input = document.createElement('input'); input.id = inputLabel.htmlFor; input.maxLength = 200; input.placeholder = 'e.g. Spagbol';
+  const actions = document.createElement('div'); actions.className = 'meal-actions';
+  const save = document.createElement('button'); save.className = 'primary'; save.type = 'submit'; save.textContent = 'Save meal';
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel';
   const status = document.createElement('span'); status.className = 'meal-status'; status.setAttribute('role', 'status');
-  const row = {input, save, status, dirty: false, saving: false}; mealRows.set(day, row);
-  input.oninput = () => { row.dirty = true; save.disabled = false; status.textContent = 'Unsaved'; };
+  const row = {input, edit, display, editing: false, saving: false, meal: ''}; mealRows.set(day, row);
+  const paint = () => { display.textContent = row.meal || 'Nothing planned yet'; display.classList.toggle('unplanned', !row.meal); edit.textContent = row.meal ? 'Edit' : '+ Add meal'; };
+  const close = () => { row.editing = false; form.hidden = true; display.hidden = false; edit.hidden = false; status.textContent = ''; paint(); edit.focus(); };
+  edit.onclick = () => { row.editing = true; input.value = row.meal; form.hidden = false; display.hidden = true; edit.hidden = true; input.focus(); };
+  cancel.onclick = close;
+  form.onkeydown = event => { if (event.key === 'Escape' && !row.saving) { event.preventDefault(); close(); } };
   form.onsubmit = async event => {
     event.preventDefault(); if (row.saving) return;
-    row.saving = true; input.disabled = true; save.disabled = true; status.textContent = 'Saving…';
-    try {
-      await mealApi(day, input.value); input.value = input.value.trim(); row.dirty = false;
-      status.textContent = 'Saved'; $('meal-error').hidden = true;
-    } catch (error) { status.textContent = 'Not saved — try again'; $('meal-error').textContent = error.message; $('meal-error').hidden = false; }
-    finally { row.saving = false; input.disabled = false; save.disabled = !row.dirty; }
+    row.saving = true; input.disabled = true; save.disabled = true; cancel.disabled = true; status.textContent = 'Saving…';
+    try { await mealApi(day, input.value); row.meal = input.value.trim(); close(); }
+    catch (error) { status.textContent = error.message + ' Your changes are still here; try saving again.'; }
+    finally { row.saving = false; input.disabled = false; save.disabled = false; cancel.disabled = false; }
   };
-  form.append(title, input, save, status); $('meal-days').append(form);
+  actions.append(cancel, save); form.append(inputLabel, input, actions, status);
+  heading.append(title, edit); card.append(heading, display, form); $('meal-days').append(card);
 }
 async function refreshMeals() {
   try {
     const meals = await mealApi();
     for (const {day, meal} of meals) {
       const row = mealRows.get(day);
-      if (row && !row.dirty && !row.saving && document.activeElement !== row.input) {
-        row.input.value = meal; row.input.disabled = false;
+      if (row && !row.editing && !row.saving) {
+        row.meal = meal; row.display.textContent = meal || 'Nothing planned yet';
+        row.display.classList.toggle('unplanned', !meal); row.edit.disabled = false;
+        row.edit.textContent = meal ? 'Edit' : '+ Add meal';
       }
     }
-    $('meal-error').hidden = false;
-    $('meal-error').textContent = [...mealRows.values()].some(row => row.dirty) ? 'You have unsaved changes. Use Save beside each day.' : '';
-    $('meal-error').hidden = !$('meal-error').textContent;
+    $('meal-error').hidden = true;
   } catch (error) { $('meal-error').textContent = 'Could not load the meal plan. Retrying shortly.'; $('meal-error').hidden = false; }
 }
 const tabs = [$('grocery-tab'), $('meals-tab')];
