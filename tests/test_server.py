@@ -70,6 +70,58 @@ class GroceryTests(unittest.TestCase):
         self.assertEqual(self.request('PATCH', '/api/meals/funday', {'meal': 'Soup'})[0], 404)
         self.assertEqual(self.request('PATCH', '/api/meals/monday', {'meal': 'Soup'}, origin='https://elsewhere.example')[0], 403)
 
+    def make_recipe(self):
+        recipe = {'name': 'Spagbol', 'ingredients': [
+            {'name': 'Mince', 'quantity': '500 g', 'staple': False},
+            {'name': 'Tomatoes', 'quantity': '2 tins', 'staple': True}],
+            'instructions': 'Brown the mince. Simmer.'}
+        self.assertEqual(self.request('POST', '/api/recipes', recipe)[0], 200)
+        return self.request(path='/api/recipes')[1][0]
+
+    def test_recipe_lifecycle_and_migration(self):
+        self.request('POST', body={'name': 'Milk'})
+        self.request('PATCH', '/api/meals/sunday', {'meal': 'Roast'})
+        recipe = self.make_recipe()
+        server.initialize()
+        saved = self.request(path='/api/recipes')[1][0]
+        self.assertEqual(saved, recipe)
+        self.assertEqual(self.request()[1][0]['name'], 'Milk')
+        self.assertEqual(self.request(path='/api/meals')[1][-1]['meal'], 'Roast')
+        recipe['name'] = 'Pasta'
+        path = '/api/recipes/' + str(recipe['id'])
+        self.assertEqual(self.request('PATCH', path, recipe)[0], 200)
+        self.assertEqual(self.request('PATCH', path, recipe)[0], 409)
+        self.assertEqual(self.request('DELETE', path, {'version': 2})[0], 200)
+        self.assertEqual(self.request(path='/api/recipes')[1], [])
+
+    def test_recipe_selection_retry_and_plan_only(self):
+        recipe = self.make_recipe()
+        action = {'request_id': 'one-unique-request', 'recipe_id': recipe['id'], 'version': 1,
+                  'day': 'monday', 'previous_meal': '', 'selected': [0]}
+        self.assertEqual(self.request('POST', '/api/recipe-actions', action)[0], 200)
+        self.assertEqual(self.request('POST', '/api/recipe-actions', action)[0], 200)
+        self.assertEqual([i['name'] for i in self.request()[1]], ['Mince'])
+        self.assertEqual(self.request(path='/api/meals')[1][0]['meal'], 'Spagbol')
+        action.update(request_id='two-unique-request', day='tuesday', selected=[])
+        self.assertEqual(self.request('POST', '/api/recipe-actions', action)[0], 200)
+        self.assertEqual(len(self.request()[1]), 1)
+        action.update(request_id='three-unique-request', day=None, selected=[1])
+        self.assertEqual(self.request('POST', '/api/recipe-actions', action)[0], 200)
+        self.assertEqual(self.request()[1][-1]['name'], 'Tomatoes')
+        action.update(request_id='four-unique-request', day='monday', previous_meal='', selected=[0])
+        self.assertEqual(self.request('POST', '/api/recipe-actions', action)[0], 409)
+        self.assertEqual(len(self.request()[1]), 2)
+
+    def test_recipe_validation(self):
+        for ingredients in [None, [], [42], [{'name': 'Salt', 'staple': 'yes'}]]:
+            self.assertEqual(self.request('POST', '/api/recipes', {'name': 'Soup', 'ingredients': ingredients})[0], 400)
+        recipe = self.make_recipe()
+        for selected in [[-1], [2], [True], [0, 0], 'all']:
+            self.assertEqual(self.request('POST', '/api/recipe-actions', {
+                'request_id': 'validation-request', 'recipe_id': recipe['id'], 'version': 1, 'selected': selected})[0], 400)
+        self.assertEqual(self.request()[1], [])
+        self.assertEqual(self.request('POST', '/api/recipes', recipe, origin='https://elsewhere.example')[0], 403)
+
     def test_validation_and_origin(self):
         for body in ({'name': ' '}, {'name': 42}, {'name': 'a' * 121}, []):
             self.assertEqual(self.request('POST', body=body)[0], 400)

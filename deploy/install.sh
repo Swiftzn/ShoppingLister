@@ -4,7 +4,7 @@ set -Eeuo pipefail
 trap 'echo "Installation failed at line $LINENO. Check the output above; fix the issue and rerun this installer." >&2' ERR
 [[ $EUID -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
 SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-for file in server.py static/index.html static/app.js static/style.css static/favicon.svg deploy/shopping-list.service; do
+for file in server.py static/index.html static/app.js static/recipes.js static/style.css static/favicon.svg deploy/shopping-list.service; do
   [[ -f "$SOURCE/$file" ]] || { echo "Missing source file: $file" >&2; exit 1; }
 done
 command -v apt-get >/dev/null || { echo 'Debian or Ubuntu is required.' >&2; exit 1; }
@@ -17,7 +17,7 @@ id shopping >/dev/null 2>&1 || useradd --system --gid shopping --home-dir /var/l
 install -d -m 755 /opt/shopping-list/static
 if [[ "$SOURCE" != /opt/shopping-list ]]; then
   install -m 644 "$SOURCE/server.py" /opt/shopping-list/server.py
-  for file in index.html app.js style.css favicon.svg; do
+  for file in index.html app.js recipes.js style.css favicon.svg; do
     install -m 644 "$SOURCE/static/$file" "/opt/shopping-list/static/$file"
   done
 fi

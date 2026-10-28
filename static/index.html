@@ -8,6 +8,7 @@
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
+  <script src="/recipes.js" defer></script>
 </head>
 <body>
   <main>
@@ -15,6 +16,7 @@
     <div class="tabs" role="tablist" aria-label="Pantry">
       <button id="grocery-tab" role="tab" aria-selected="true" aria-controls="grocery-panel">Grocery list</button>
       <button id="meals-tab" role="tab" aria-selected="false" aria-controls="meals-panel" tabindex="-1">Meal Planner</button>
+      <button id="recipes-tab" role="tab" aria-selected="false" aria-controls="recipes-panel" tabindex="-1">Recipes</button>
     </div>
     <section id="grocery-panel" role="tabpanel" aria-labelledby="grocery-tab">
     <section class="heading"><div><p class="eyebrow">A LITTLE LESS TO REMEMBER</p><h1>Grocery list<span>.</span></h1></div><span id="count" class="count">Loading…</span></section>
@@ -36,8 +38,30 @@
       <p id="meal-error" role="alert" hidden></p>
       <div id="meal-days"></div>
     </section>
+    <section id="recipes-panel" role="tabpanel" aria-labelledby="recipes-tab" hidden>
+      <section class="heading"><div><p class="eyebrow">THE HOUSE FAVOURITES</p><h1>Recipes<span>.</span></h1></div><button id="new-recipe" class="primary">+ New recipe</button></section>
+      <p id="recipe-notice" role="status"></p><p id="recipe-error" role="alert" hidden></p>
+      <div id="recipe-list"></div>
+    </section>
     <footer><span>A place for the everyday essentials.</span><span id="status" role="status">Connecting…</span></footer>
   </main>
   <dialog id="edit-dialog"><form id="edit-form"><h2>Edit item</h2><label for="edit-name">Item</label><input id="edit-name" maxlength="120" required><label for="edit-quantity">Quantity</label><input id="edit-quantity" maxlength="40"><div class="dialog-actions"><button type="button" id="cancel-edit">Cancel</button><button class="primary" type="submit">Save changes</button></div></form></dialog>
+  <dialog id="recipe-editor" class="wide-dialog" aria-labelledby="recipe-editor-title">
+    <form id="recipe-form"><h2 id="recipe-editor-title">New recipe</h2>
+      <label for="recipe-name">Recipe name</label><input id="recipe-name" required maxlength="120" placeholder="Spagbol">
+      <h3>Ingredients</h3><p class="muted">Mark cupboard staples as “Usually have this”. You can still choose them when shopping.</p>
+      <div id="ingredient-editor"></div><button type="button" id="add-ingredient" class="secondary">+ Add ingredient</button>
+      <label for="recipe-instructions" class="instructions-label">Instructions (optional)</label><textarea id="recipe-instructions" rows="6" maxlength="10000"></textarea>
+      <p id="recipe-save-error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel-recipe">Cancel</button><button class="primary" type="submit">Save recipe</button></div>
+    </form>
+  </dialog>
+  <dialog id="recipe-use" class="wide-dialog" aria-labelledby="recipe-use-title">
+    <form id="recipe-use-form"><h2 id="recipe-use-title">What do you need?</h2><p id="recipe-use-name" class="muted"></p>
+      <div id="plan-controls"><label for="recipe-day">Add to meal planner</label><select id="recipe-day"></select><p id="day-replacement" class="muted"></p></div>
+      <h3>What do you need?</h3><p class="muted">Tick only what you need to buy. Already-listed ingredients start unchecked; selecting one adds another entry.</p>
+      <div id="ingredient-checklist"></div><p id="recipe-use-error" role="alert"></p>
+      <div class="dialog-actions"><button type="button" id="cancel-use">Cancel</button><button type="button" id="plan-only" class="secondary">Plan only</button><button type="submit" id="apply-recipe" class="primary">Add selected</button></div>
+    </form>
+  </dialog>
 </body>
 </html>

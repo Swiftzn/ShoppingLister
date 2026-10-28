@@ -29,6 +29,8 @@ def initialize():
         db.execute('CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, quantity TEXT NOT NULL, checked INTEGER NOT NULL DEFAULT 0)')
 
         db.execute('CREATE TABLE IF NOT EXISTS meals (day TEXT PRIMARY KEY, meal TEXT NOT NULL)')
+        db.execute('CREATE TABLE IF NOT EXISTS recipes (id INTEGER PRIMARY KEY, name TEXT NOT NULL, ingredients TEXT NOT NULL, instructions TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1)')
+        db.execute('CREATE TABLE IF NOT EXISTS recipe_requests (id TEXT PRIMARY KEY)')
         db.executemany('INSERT OR IGNORE INTO meals(day, meal) VALUES (?, ?)', [(day, '') for day in DAYS])
 
 
@@ -46,6 +48,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/recipes':
+            try:
+                with connect() as db:
+                    recipes = [dict(row) for row in db.execute('SELECT * FROM recipes ORDER BY name COLLATE NOCASE, id')]
+                for recipe in recipes:
+                    recipe['ingredients'] = json.loads(recipe['ingredients'])
+                self.send(200, recipes)
+            except sqlite3.Error:
+                self.send(500, {'error': 'Could not load recipes.'})
+            return
         if path == '/api/meals':
             try:
                 with connect() as db:
@@ -61,7 +73,7 @@ class Handler(BaseHTTPRequestHandler):
             except sqlite3.Error:
                 self.send(500, {'error': 'Could not load the list.'})
             return
-        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/favicon.svg': ('favicon.svg', 'image/svg+xml')}
+        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript'), '/recipes.js': ('recipes.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/favicon.svg': ('favicon.svg', 'image/svg+xml')}
         if path not in files:
             self.send(404, {'error': 'Not found'})
             return
@@ -76,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get('Content-Length', '0'))
-            if not 0 < size <= 4096:
+            if not 0 < size <= 65536:
                 raise ValueError('Invalid request size.')
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 raise ValueError('Expected JSON.')
@@ -85,7 +97,53 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Expected an object.')
             path = urlsplit(self.path).path
             with connect() as db:
-                if self.command == 'PATCH' and path.startswith('/api/meals/'):
+                if self.command == 'POST' and path == '/api/recipe-actions':
+                    token = body.get('request_id')
+                    if not isinstance(token, str) or not 16 <= len(token) <= 100:
+                        raise ValueError('Invalid request ID.')
+                    db.execute('BEGIN IMMEDIATE')
+                    if db.execute('SELECT 1 FROM recipe_requests WHERE id = ?', (token,)).fetchone():
+                        self.send(200, {'ok': True})
+                        return
+                    recipe_id = body.get('recipe_id')
+                    if type(recipe_id) is not int:
+                        raise ValueError('Invalid recipe ID.')
+                    recipe = db.execute('SELECT * FROM recipes WHERE id = ?', (recipe_id,)).fetchone()
+                    if not recipe or recipe['version'] != body.get('version'):
+                        self.send(409, {'error': 'Recipe changed. Close this window and reopen the recipe.'})
+                        return
+                    ingredients = json.loads(recipe['ingredients'])
+                    selected = body.get('selected', [])
+                    if not isinstance(selected, list) or any(type(i) is not int or not 0 <= i < len(ingredients) for i in selected) or len(set(selected)) != len(selected):
+                        raise ValueError('Invalid ingredient selection.')
+                    day = body.get('day')
+                    if day is not None:
+                        if day not in DAYS:
+                            raise ValueError('Choose a valid day.')
+                        current = db.execute('SELECT meal FROM meals WHERE day = ?', (day,)).fetchone()['meal']
+                        if current != body.get('previous_meal'):
+                            self.send(409, {'error': 'That day changed. Close this window and choose the day again.'})
+                            return
+                        db.execute('UPDATE meals SET meal = ? WHERE day = ?', (recipe['name'], day))
+                    db.executemany('INSERT INTO items(name, quantity) VALUES (?, ?)', [(ingredients[i]['name'], ingredients[i]['quantity']) for i in selected])
+                    db.execute('INSERT INTO recipe_requests(id) VALUES (?)', (token,))
+                elif self.command == 'POST' and path == '/api/recipes':
+                    name, ingredients, instructions = self.recipe_fields(body)
+                    db.execute('INSERT INTO recipes(name, ingredients, instructions) VALUES (?, ?, ?)', (name, ingredients, instructions))
+                elif path.startswith('/api/recipes/') and path.removeprefix('/api/recipes/').isdigit():
+                    recipe_id = int(path.rsplit('/', 1)[1])
+                    if self.command == 'PATCH':
+                        name, ingredients, instructions = self.recipe_fields(body)
+                        result = db.execute('UPDATE recipes SET name = ?, ingredients = ?, instructions = ?, version = version + 1 WHERE id = ? AND version = ?', (name, ingredients, instructions, recipe_id, body.get('version')))
+                    elif self.command == 'DELETE':
+                        result = db.execute('DELETE FROM recipes WHERE id = ? AND version = ?', (recipe_id, body.get('version')))
+                    else:
+                        self.send(405, {'error': 'Method not allowed'})
+                        return
+                    if not result.rowcount:
+                        self.send(409, {'error': 'Recipe changed or was deleted. Close and refresh recipes before trying again.'})
+                        return
+                elif self.command == 'PATCH' and path.startswith('/api/meals/'):
                     day = path.removeprefix('/api/meals/')
                     meal = body.get('meal')
                     if day not in DAYS:
@@ -121,6 +179,26 @@ class Handler(BaseHTTPRequestHandler):
             self.send(400, {'error': str(exc)})
         except sqlite3.Error:
             self.send(500, {'error': 'Could not save the list. Please try again.'})
+
+    @classmethod
+    def recipe_fields(cls, body):
+        name, _ = cls.fields(body)
+        ingredients = body.get('ingredients')
+        instructions = body.get('instructions', '')
+        if not isinstance(instructions, str) or len(instructions) > 10000:
+            raise ValueError('Instructions must be at most 10,000 characters.')
+        if not isinstance(ingredients, list) or not 1 <= len(ingredients) <= 100:
+            raise ValueError('Add between 1 and 100 ingredients.')
+        clean = []
+        for ingredient in ingredients:
+            if not isinstance(ingredient, dict):
+                raise ValueError('Invalid ingredient.')
+            item_name, quantity = cls.fields(ingredient)
+            staple = ingredient.get('staple', False)
+            if type(staple) is not bool:
+                raise ValueError('Invalid cupboard staple setting.')
+            clean.append({'name': item_name, 'quantity': quantity, 'staple': staple})
+        return name, json.dumps(clean), instructions.strip()
 
     @staticmethod
     def fields(body):

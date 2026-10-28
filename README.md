@@ -86,3 +86,11 @@ Tesco basket integration is deliberately left for a future version. The `/api/it
 ## Meal planner
 
 The Meal Planner tab holds one shared Monday-to-Sunday plan. Each day displays its meal on a card. Choose Edit (or Add meal), enter a meal name, and save. Cancel leaves the saved meal unchanged. Save an empty field to clear it. The plan persists until edited; it does not reset each week. Open planners refresh every 15 seconds without replacing unsaved edits. Meals live in the same SQLite database as groceries, so existing backup instructions cover both. Updating automatically adds meal storage and preserves existing groceries.
+
+## Recipes
+
+Save a recipe name, ingredients with free-text quantities, and optional instructions in the Recipes tab. Mark ingredients you usually keep in the cupboard with “Usually have this”. Edit and delete recipes from their cards.
+
+Choose **Add to meal planner** to pick a day and review ingredients, or **Choose groceries** to shop without planning a meal. Staples and ingredients already on the unchecked grocery list (matching names, ignoring case and surrounding spaces) start unchecked. Override any checkbox when needed. Selected ingredients become separate grocery entries; quantities are not automatically combined. **Plan only** skips grocery additions. Existing meals are shown before replacement. Planned meals retain the recipe name as text even if the recipe is later edited or deleted.
+
+Recipes use the existing SQLite database and are included in database backups. Installation adds the new tables without clearing groceries or meals. Repeating a failed ingredient request uses the same request ID to avoid duplicate additions.

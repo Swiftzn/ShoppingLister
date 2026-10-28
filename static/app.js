@@ -103,20 +103,21 @@ async function refreshMeals() {
     $('meal-error').hidden = true;
   } catch (error) { $('meal-error').textContent = 'Could not load the meal plan. Retrying shortly.'; $('meal-error').hidden = false; }
 }
-const tabs = [$('grocery-tab'), $('meals-tab')];
+const tabs = [$('grocery-tab'), $('meals-tab'), $('recipes-tab')];
 function selectTab(tab) {
   for (const item of tabs) {
     const active = item === tab; item.setAttribute('aria-selected', String(active)); item.tabIndex = active ? 0 : -1;
     $(item.getAttribute('aria-controls')).hidden = !active;
   }
   if (tab === $('meals-tab')) refreshMeals();
+  if (tab === $('recipes-tab')) refreshRecipes();
 }
 for (const tab of tabs) {
   tab.onclick = () => selectTab(tab);
   tab.onkeydown = event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[1] : tabs[1 - tabs.indexOf(tab)];
+    const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : tabs[(tabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
     next.focus(); selectTab(next);
   };
 }
