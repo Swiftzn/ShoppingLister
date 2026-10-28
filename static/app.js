@@ -23,6 +23,7 @@ function render() {
   const remaining = items.filter(item => !item.checked).length;
   $('count').textContent = `${remaining} ${remaining === 1 ? 'item' : 'items'} to go`;
   $('empty').hidden = remaining > 0;
+  $('empty').classList.toggle('all-picked-up', items.length > 0 && remaining === 0);
   $('empty').querySelector('h3').textContent = items.length ? 'All picked up.' : 'A fresh start.';
   $('empty').querySelector('p').textContent = items.length ? 'Everything on your list is in the basket.' : 'Add the first thing you need above.';
   $('done-section').hidden = remaining === items.length;
