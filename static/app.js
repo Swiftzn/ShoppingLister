@@ -34,10 +34,10 @@ function render() {
     check.onclick = () => change(() => api('/' + item.id, 'PATCH', {checked: !item.checked}));
     const name = document.createElement('button'); name.className = 'item-name'; name.textContent = ''; name.setAttribute('aria-label', `Edit ${item.name}`);
     name.onclick = () => { editing = item.id; $('edit-name').value = item.name; $('edit-quantity').value = item.quantity; $('edit-dialog').showModal(); };
-    const qty = document.createElement('span'); qty.className = 'quantity'; qty.textContent = item.quantity ? item.quantity + (/^[0-9]+([.,][0-9]+)?$/.test(item.quantity.trim()) ? ' ×' : '') : '';
+    const qty = document.createElement('span'); qty.className = 'quantity'; qty.textContent = item.quantity.trim() ? (/^[0-9]+([.,][0-9]+)?$/.test(item.quantity.trim()) ? '×' : '· ') + item.quantity.trim() : '';
     const remove = document.createElement('button'); remove.className = 'remove'; remove.textContent = '×'; remove.setAttribute('aria-label', `Delete ${item.name}`); remove.onclick = () => change(() => api('/' + item.id, 'DELETE', {}));
     const itemLabel = document.createElement('span'); itemLabel.className = 'item-label'; itemLabel.textContent = item.name;
-    name.append(qty, itemLabel);
+    name.append(itemLabel, qty);
     row.append(check, name, remove); $(item.checked ? 'done' : 'pending').append(row);
   }
 }
